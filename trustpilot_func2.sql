@@ -1,54 +1,19 @@
 CREATE OR REPLACE TABLE FUNCTION development.trustpilot_invitation(start_date DATE, end_date DATE, invitation_limit INT64, threshold INT64, bo_turnover_limit FLOAT64, withdrawal_limit FLOAT64, profit_limit FLOAT64, mt5_pnl_limit FLOAT64) AS
 WITH active_users AS(
-  SELECT stats.*
-        , CASE
-             WHEN (cumulative_bo_turnover_usd >= bo_turnover_limit AND prev_cum_bo_turnover <bo_turnover_limit) THEN 'cumulative_bo_turnover_usd'
-             WHEN (cumulative_withdrawal_usd >= withdrawal_limit AND prev_cum_withdrawal < withdrawal_limit) THEN 'cumulative_withdrawal_usd'
-             WHEN bo_profit_percentage>= profit_limit THEN 'bo_profit_percentage'
-             WHEN (cumulative_mt5_pnl_usd >= mt5_pnl_limit AND prev_cum_mt5_pnl < mt5_pnl_limit) THEN 'cumulative_mt5_pnl_usd'
-         ELSE 'none'
-            END AS metric
-        , up.residence AS country
-        , up.email
-        , up.loginid_list
-    FROM (
-        SELECT *
-          FROM (
-            SELECT binary_user_id
-                 , date
-                 , bo_turnover_usd
-                 , cumulative_bo_turnover_usd
-                 , LAG(cumulative_bo_turnover_usd) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_bo_turnover
-                 , bo_pnl_usd
-                 , cumulative_bo_pnl_usd
-                 , LAG(cumulative_bo_pnl_usd) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_bo_pnl
-                 , bo_profit_percentage
-                 , bo_contract_count
-                 , cumulative_bo_contract_count
-                 , LAG(cumulative_bo_contract_count) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_bo_contract_count
-                 , deposit_usd
-                 , cumulative_deposit_usd
-                 , LAG(cumulative_deposit_usd) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_deposit
-                 , withdrawal_usd
-                 , cumulative_withdrawal_usd
-                 , LAG(cumulative_withdrawal_usd) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_withdrawal
-                 , deposit_count
-                 , cumulative_deposit_count
-                 , LAG(cumulative_deposit_count) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_deposit_count
-                 , withdrawal_count
-                 , cumulative_withdrawal_count
-                 , LAG(cumulative_withdrawal_count) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_withdrawal_count
-                 , mt5_pnl_usd
-                 , cumulative_mt5_pnl_usd
-                 , LAG(cumulative_mt5_pnl_usd) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_mt5_pnl
-                 , mt5_contract_count
-                 , cumulative_mt5_contract_count
-                 , LAG(cumulative_mt5_contract_count) OVER (PARTITION BY binary_user_id ORDER BY date) AS prev_cum_mt5_contract_count
-            FROM development.user_daily_summary
-            )
-        WHERE date >= start_date AND date < end_date
-        ) AS stats
-    JOIN bi.user_profile up ON up.binary_user_id = stats.binary_user_id
+  SELECT summary.*
+       , CASE
+             WHEN (cumulative_bo_turnover_usd >= bo_turnover_limit AND cumulative_bo_turnover_usd - bo_turnover_usd < bo_turnover_limit) THEN 'cumulative_bo_turnover_usd'
+             WHEN (cumulative_bo_profit_usd >= bo_turnover_limit AND cumulative_bo_profit_usd - bo_profit_usd < bo_turnover_limit) THEN 'cumulative_bo_profit_usd'
+             WHEN (cumulative_withdrawal_usd >= withdrawal_limit AND cumulative_withdrawal_usd - withdrawal_usd < withdrawal_limit) THEN 'cumulative_withdrawal_usd'
+             WHEN (cumulative_mt5_profit_usd >= mt5_pnl_limit AND cumulative_mt5_profit_usd - mt5_profit_usd < mt5_pnl_limit) THEN 'cumulative_mt5_profit_usd'
+             WHEN cumulative_bo_profit_percentage >= profit_limit THEN 'cumulative_bo_profit_percentage'
+         ELSE 'none' END AS metric
+      , up.residence AS country
+      , up.email
+      , up.loginid_list
+    FROM development.user_daily_summary summary
+    JOIN bi.user_profile up ON up.binary_user_id = summary.binary_user_id
+   WHERE date >= start_date AND date < end_date
    )
 ,top_country AS (
   SELECT  country
