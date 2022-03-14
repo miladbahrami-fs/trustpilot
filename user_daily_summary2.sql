@@ -61,7 +61,7 @@ payments AS(
                    , 0)) AS deposit_usd
            , SUM(IF(category IN ('Client Withdrawal','Payment Agent Withdrawal')
                    , amount_usd
-                   , 0)) AS withdrawal_usd
+                   , 0)) AS withdrawal_usd 
            , SUM(IF(category IN ('Client Deposit','Payment Agent Deposit')
                    , 1
                    , 0)) AS deposit_count
