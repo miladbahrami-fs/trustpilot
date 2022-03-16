@@ -12,8 +12,8 @@ DECLARE _query_string STRING;
 SET _query_string="""
 WITH active_users AS(
   SELECT summary.*
-       , cumulative_"""||metric||""" as metric_value
-       , metric
+       , cumulative_"""||metric||""" AS metric_value
+       , '"""||metric||"""' AS metric
        , CASE
              WHEN """||first_time_meet||"""= TRUE THEN (cumulative_"""||metric||""" >= """||threshold||""" AND cumulative_"""||metric||""" - """||metric||""" < """||threshold||""") 
              WHEN """||first_time_meet||"""= FALSE THEN cumulative_"""||metric||""" >= """||threshold||""" 
@@ -24,7 +24,7 @@ WITH active_users AS(
       , up.loginid_list
     FROM development.user_daily_summary summary
     JOIN bi.user_profile up ON up.binary_user_id = summary.binary_user_id
-   WHERE date >= """||start_date||""" AND date < """||end_date||"""
+   WHERE date >= '"""||start_date||"""' AND date < '"""||end_date||"""'
    )
 ,top_country AS (
   SELECT country
@@ -50,15 +50,15 @@ WITH active_users AS(
       )
 )
 ,final_users AS (
-  SELECT row_number() OVER (partition BY au.country ORDER BY metric_value DESC) AS rownum
-       , au.binary_user_id
+  SELECT row_number() OVER (partition BY active_users.country ORDER BY metric_value DESC) AS rownum
+       , binary_user_id
        , metric
-       , au.country
-       , au.email
+       , active_users.country
+       , email
        , tc.final_number_user
-       , au.loginid_list
+       , loginid_list
     FROM active_users 
-    LEFT JOIN top_country AS tc ON au.country = tc.country
+    LEFT JOIN top_country AS tc ON active_users.country = tc.country
    WHERE meet = TRUE
 )
 SELECT binary_user_id
@@ -74,6 +74,7 @@ SELECT binary_user_id
          , LAST_VALUE(bc.last_name) OVER(PARTITION BY bc.binary_user_id ORDER BY date_joined) AS last_name
          , final_users.email
          , final_users.loginid_list
+         , metric
          , country
       FROM final_users
       LEFT JOIN bi.bo_client bc ON bc.binary_user_id = final_users.binary_user_id
