@@ -1,3 +1,14 @@
+-- The idea of this query is to get a list of users who have passed the threshold over a metric on yesterday data only
+-- excluding those clients whose exceeded the threshold in any previous date, then getting users in each active country based on:
+-- - if active client count below invitation_limit, we take all active clients in that country
+-- - if active client count above invitation_limit but less than threshold, we take all active clients in that country
+-- - else we take percentage of active clients based on country precentage
+-- and finally we exclude from the result clients who choose to unsubscribed from marketing emails
+-- Available Metrics : 
+-- 'bo_turnover_usd' , 'bo_winning_turnover_usd' , 'bo_pnl_usd' ,'bo_profit_usd' ,'bo_win_count' ,'bo_profit_percentage' ,'bo_contract_count' ,
+-- 'deposit_usd' ,'withdrawal_usd' ,'deposit_count', 'withdrawal_count' , 'withdrawal_deposit_percentage' , 'mt5_pnl_usd'
+-- 'mt5_profit_usd', 'mt5_win_count','mt5_contract_count'
+
 CREATE OR REPLACE PROCEDURE development.trustpilot_invitation_func(
   start_date STRING -- start date
 , end_date STRING -- end date
