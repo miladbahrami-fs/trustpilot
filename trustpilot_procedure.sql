@@ -14,7 +14,7 @@ CREATE OR REPLACE PROCEDURE development.trustpilot_invitation_func(
 , end_date STRING -- end date
 , invitation_limit INT64 -- number of invitations
 , interval_days INT64  -- time range for calculating metrics, in Days
-, metric STRING -- Available Metrics: 
+, metric STRING -- metric 
 , percentage_threshold INT64 -- if percentage of active users in a country was below this threshod, the whole users of that country will be considered  
 , threshold FLOAT64 -- metric threshold
 , first_time_meet BOOL 
