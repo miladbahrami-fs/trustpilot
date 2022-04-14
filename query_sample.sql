@@ -76,15 +76,14 @@ WITH user_daily_summary AS (
         , number_of_trades as mt5_contract_count
         , SUM(number_of_trades) OVER(w) AS cumulative_mt5_contract_count
      FROM (
-         SElECT date
+         SElECT DATE(deal_date) AS date
               , binary_user_id
-              , SUM(-closed_pnl_usd) AS closed_pnl_usd
-              , SUM(IF(closed_pnl_usd<0
-                    , 1
-                    , 0)) AS mt5_win_count
-              , SUM(number_of_trades) AS number_of_trades
-           FROM bi.trades
-          WHERE platform = 'MT5' AND date >= DATE_SUB(current_date(), INTERVAL 90 DAY)
+              , SUM(sum_profit) AS closed_pnl_usd
+              , SUM(count_win_deals) AS mt5_win_count
+              , SUM(count_deals) AS number_of_trades
+           FROM bi.mv_mt5_deal_aggregated
+           JOIN bi.mt5_user ON mt5_user.login=mv_mt5_deal_aggregated.login
+          WHERE DATE(deal_date) >= DATE_SUB(current_date(), INTERVAL 90 DAY)
           GROUP BY 1,2
          )
    WINDOW w AS ( PARTITION BY binary_user_id ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW )
