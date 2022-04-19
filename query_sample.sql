@@ -78,11 +78,18 @@ WITH user_daily_summary AS (
      FROM (
          SElECT DATE(deal_date) AS date
               , binary_user_id
-              , SUM(sum_profit) AS closed_pnl_usd
+              , -ROUND(SUM(CASE WHEN mv_mt5_deal_aggregated.entry IN ('sell','credit') 
+                       THEN (mv_mt5_deal_aggregated.sum_profit + mv_mt5_deal_aggregated.sum_storage) * r.rate
+                       ELSE 0 END),4) AS closed_pnl_usd
               , SUM(count_win_deals) AS mt5_win_count
               , SUM(count_deals) AS number_of_trades
            FROM bi.mv_mt5_deal_aggregated
            JOIN bi.mt5_user ON mt5_user.login=mv_mt5_deal_aggregated.login
+           LEFT JOIN bi.mt5_trading_group g ON mt5_user.group = g.group AND mt5_user.srvid = g.srvid
+           LEFT JOIN bi.bo_exchange_rate r 
+              ON DATE(r.date) = DATE_SUB(DATE(mv_mt5_deal_aggregated.deal_date), INTERVAL 1 DAY)
+             AND g.currency = r.source_currency
+             AND r.target_currency = 'USD'
           WHERE DATE(deal_date) >= DATE_SUB(current_date(), INTERVAL 90 DAY)
           GROUP BY 1,2
          )
