@@ -121,7 +121,7 @@ WITH user_daily_summary AS (
    )
    SELECT COALESCE(bo_trades.binary_user_id, payments.binary_user_id, mt5_trades.binary_user_id) AS binary_user_id
         , COALESCE(bo_trades.date, payments.date, mt5_trades.date) AS date
-        , COALSECE(bo_trades.bo_turnover_usd,0) AS bo_turnover_usd
+        , COALESCE(bo_trades.bo_turnover_usd,0) AS bo_turnover_usd
         , COALESCE(bo_trades.cumulative_bo_turnover_usd,0) AS cumulative_bo_turnover_usd
         , COALESCE(bo_trades.bo_winning_turnover_usd,0) AS bo_winning_turnover_usd
         , COALESCE(bo_trades.cumulative_bo_winning_turnover_usd,0) AS cumulative_bo_winning_turnover_usd
