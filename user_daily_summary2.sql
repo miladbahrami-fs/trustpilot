@@ -1,4 +1,3 @@
-CREATE VIEW `business-intelligence-240201.development.user_daily_summary` AS
 WITH bo_trades AS (
   SELECT date
        , binary_user_id
@@ -10,6 +9,10 @@ WITH bo_trades AS (
        , SUM(bo_win_count) OVER(w) AS cumulative_bo_win_count
        , bo_pnl_usd
        , SUM(bo_pnl_usd) OVER(w) AS cumulative_bo_pnl_usd
+       , bo_profit_usd
+       , SUM(bo_profit_usd) OVER(w) AS cumulative_bo_profit_usd
+       , bo_loss_usd
+       , SUM(bo_loss_usd) OVER(w) AS cumulative_bo_loss_usd
        , SAFE_DIVIDE(bo_pnl_usd,bo_turnover_usd)*100 AS bo_profit_percentage
        , SAFE_DIVIDE(SUM(bo_pnl_usd) OVER(w),SUM(bo_turnover_usd) OVER(w))*100 AS cumulative_bo_profit_percentage
        , bo_contract_count
@@ -24,7 +27,13 @@ WITH bo_trades AS (
            , SUM(IF(sum_buy_price_usd_minus_sell_price_usd<0
                    , 1
                    , 0)) As bo_win_count
-           , -SUM(sum_buy_price_usd_minus_sell_price_usd) AS bo_pnl_usd
+           , SUM(IF(sum_buy_price_usd_minus_sell_price_usd<0
+                   , -sum_buy_price_usd_minus_sell_price_usd
+                   , 0)) As bo_profit_usd
+           , SUM(IF(sum_buy_price_usd_minus_sell_price_usd>0
+                   , -sum_buy_price_usd_minus_sell_price_usd
+                   , 0)) As bo_loss_usd
+           , SUM(-sum_buy_price_usd_minus_sell_price_usd) AS bo_pnl_usd
            , SUM(total_contracts) AS bo_contract_count
         FROM `business-intelligence-240201.bi.mv_bo_pnl_summary` where year_month='2022-01-01'
        GROUP BY 1,2
@@ -42,6 +51,8 @@ payments AS(
         , SUM(deposit_count) OVER(w) AS cumulative_deposit_count
         , withdrawal_count
         , SUM(withdrawal_count) OVER(w) AS cumulative_withdrawal_count
+        , SAFE_DIVIDE(-withdrawal_usd,deposit_usd)*100 AS withdrawal_deposit_percentage
+        , SAFE_DIVIDE(SUM(-withdrawal_usd) OVER(w),SUM(deposit_usd) OVER(w))*100 AS cumulative_withdrawal_deposit_percentage
     FROM (
       SELECT DATE(transaction_time) AS date
            , binary_user_id
@@ -50,7 +61,7 @@ payments AS(
                    , 0)) AS deposit_usd
            , SUM(IF(category IN ('Client Withdrawal','Payment Agent Withdrawal')
                    , amount_usd
-                   , 0)) AS withdrawal_usd
+                   , 0)) AS withdrawal_usd 
            , SUM(IF(category IN ('Client Deposit','Payment Agent Deposit')
                    , 1
                    , 0)) AS deposit_count
@@ -70,7 +81,11 @@ mt5_trades AS (
        , binary_user_id
        , closed_pnl_usd as mt5_pnl_usd
        , SUM(closed_pnl_usd) OVER(w) AS cumulative_mt5_pnl_usd
-       , mt5_win_count
+       , mt5_profit_usd 
+       , SUM(mt5_profit_usd) OVER(w) AS cumulative_mt5_profit_usd
+       , mt5_loss_usd
+       , SUM(mt5_loss_usd) OVER(w) AS cumulative_mt5_loss_usd 
+       , mt5_win_count 
        , SUM(mt5_win_count) OVER(w) AS cumulative_mt5_win_count 
        , number_of_trades as mt5_contract_count
        , SUM(number_of_trades) OVER(w) AS cumulative_mt5_contract_count
@@ -81,6 +96,12 @@ mt5_trades AS (
              , SUM(IF(closed_pnl_usd<0
                   , 1
                   , 0)) AS mt5_win_count
+             , SUM(IF(closed_pnl_usd<0
+                  , -closed_pnl_usd
+                  , 0)) AS mt5_profit_usd
+             , SUM(IF(closed_pnl_usd>0
+                  , -closed_pnl_usd
+                  , 0)) AS mt5_loss_usd
              , SUM(number_of_trades) AS number_of_trades
           FROM bi.trades
          WHERE platform = 'MT5' AND date >= '2022-01-01'
@@ -96,6 +117,10 @@ SELECT COALESCE(bo_trades.binary_user_id, payments.binary_user_id, mt5_trades.bi
      , bo_trades.cumulative_bo_winning_turnover_usd
      , bo_trades.bo_pnl_usd
      , bo_trades.cumulative_bo_pnl_usd
+     , bo_trades.bo_profit_usd
+     , bo_trades.cumulative_bo_profit_usd
+     , bo_trades.bo_loss_usd
+     , bo_trades.cumulative_bo_loss_usd
      , bo_trades.bo_win_count
      , bo_trades.cumulative_bo_win_count
      , bo_trades.bo_profit_percentage
@@ -110,8 +135,14 @@ SELECT COALESCE(bo_trades.binary_user_id, payments.binary_user_id, mt5_trades.bi
      , payments.cumulative_deposit_count
      , payments.withdrawal_count
      , payments.cumulative_withdrawal_count
+     , payments.withdrawal_deposit_percentage
+     , payments.cumulative_withdrawal_deposit_percentage
      , mt5_trades.mt5_pnl_usd
      , mt5_trades.cumulative_mt5_pnl_usd
+     , mt5_trades.mt5_profit_usd
+     , mt5_trades.cumulative_mt5_profit_usd
+     , mt5_trades.mt5_loss_usd
+     , mt5_trades.cumulative_mt5_loss_usd
      , mt5_trades.mt5_win_count
      , mt5_trades.cumulative_mt5_win_count 
      , mt5_trades.mt5_contract_count
