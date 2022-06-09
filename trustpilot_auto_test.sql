@@ -1,43 +1,17 @@
-CREATE OR REPLACE PROCEDURE bi.sp_get_trustpilot_invitation_list(
-  report_date DATE
-, invitation_limit INT64
-, metric STRING
-, percentage_threshold INT64
-, threshold FLOAT64
-, first_time_meet BOOL
-)
-OPTIONS (
-   description = """
-   The idea of this query is to get the list of users who have passed the specified threshold regarding the specified metric in the selected date;
-   excluding those clients whose exceeded the threshold in any previous date. The metric is calculated over the specified time range.
-   Then getting users in each active country based on:
-      - If active client count below invitation_limit, we take all active clients in that country
-      - If active client count above invitation_limit but less than threshold, we take all active clients in that country
-      - Else we take percentage of active clients based on country precentage
-
-   PARAMETERS
-      - report_date          : The date to get the list for
-      - invitation_limit     : Number of invitations to send
-      - metric               : Metric name
-      - percentage_threshold : If percentage of active users in a country was below this threshod, the whole users of that country will be considered
-      - threshold            : Metric threshold, users who exceed this threshold will be selected
-      - first_time_meet      : If true, users who have passed the threshold in the selected date for the first time will be selected
-
-   VARIABLES
-      - lookback        : Time range for calculating metrics, in Months
-
-   Available Metrics :
-      'bo_turnover_usd', 'bo_winning_turnover_usd', 'bo_pnl_usd', 'bo_profit_usd', 'bo_win_count', 'bo_profit_percentage'
-      , 'bo_contract_count', 'deposit_usd', 'withdrawal_usd', 'deposit_count', 'withdrawal_count', 'withdrawal_deposit_percentage'
-      , 'mt5_pnl_usd', 'mt5_profit_usd', 'mt5_win_count', 'mt5_contract_count'
-
- """ )
-BEGIN
+DECLARE report_date DATE DEFAULT '2022-05-01';
+DECLARE invitation_limit INT64 DEFAULT 300;
+DECLARE metric STRING DEFAULT 'auto';
+DECLARE percentage_threshold INT64 DEFAULT 5;
+DECLARE threshold FLOAT64 DEFAULT 0;
+DECLARE first_time_meet BOOL DEFAULT TRUE; 
 DECLARE lookback INT64;
-DECLARE _user_daily_summary_query STRING;
-DECLARE _users_query STRING;
+DECLARE _user_daily_summary STRING;
+DECLARE _active_users STRING;
+DECLARE _active_users_auto STRING;
+DECLARE _final_users STRING;
+DECLARE _query_string STRING;
 SET lookback = 3;
-SET _user_daily_summary_query = """
+SET _user_daily_summary = """
 WITH user_daily_summary AS (
    WITH bo_trades AS (
       SELECT *
@@ -138,7 +112,7 @@ WITH user_daily_summary AS (
                          AND r.target_currency = 'USD'
                        WHERE DATE(deal_date) >= DATE_SUB('"""||report_date||"""', INTERVAL """||lookback||""" MONTH)
                          AND DATE(deal_date) < '"""||report_date||"""'
-                       GROUP BY 1,2 
+                       GROUP BY 1,2
                       ) AS daily
               WINDOW w AS ( PARTITION BY binary_user_id ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW )
               ) AS daily_summary
@@ -150,7 +124,7 @@ WITH user_daily_summary AS (
         , bo_trades.cumulative_bo_turnover_usd
         , bo_trades.bo_winning_turnover_usd
         , bo_trades.cumulative_bo_winning_turnover_usd
-        , bo_trades.bo_pnl_usd
+        , bo_trades.bo_pnl_usd  
         , bo_trades.cumulative_bo_pnl_usd
         , bo_trades.bo_win_count
         , bo_trades.cumulative_bo_win_count
@@ -172,6 +146,18 @@ WITH user_daily_summary AS (
         , mt5_trades.cumulative_mt5_win_count
         , mt5_trades.mt5_contract_count
         , mt5_trades.cumulative_mt5_contract_count
+        , COALESCE(bo_trades.bo_pnl_usd, 0) 
+            + COALESCE(mt5_trades.mt5_pnl_usd, 0) AS pnl_usd
+        , COALESCE(bo_trades.cumulative_bo_pnl_usd,0) 
+            + COALESCE(mt5_trades.cumulative_mt5_pnl_usd,0) AS cumulative_pnl_usd
+        , COALESCE(bo_trades.bo_contract_count,0) 
+            + COALESCE(mt5_trades.mt5_contract_count,0) 
+            + COALESCE(payments.deposit_count,0) 
+            + COALESCE(payments.withdrawal_count,0) AS contract_count
+        , COALESCE(bo_trades.cumulative_bo_contract_count,0) 
+            + COALESCE(mt5_trades.cumulative_mt5_contract_count,0) 
+            + COALESCE(payments.cumulative_deposit_count,0) 
+            + COALESCE(payments.cumulative_withdrawal_count,0) AS cumulative_contract_count
      FROM bo_trades
      FULL JOIN payments
           ON payments.binary_user_id = bo_trades.binary_user_id
@@ -179,14 +165,13 @@ WITH user_daily_summary AS (
      FULL JOIN mt5_trades
           ON mt5_trades.binary_user_id = COALESCE(bo_trades.binary_user_id, payments.binary_user_id)
           AND mt5_trades.date = COALESCE(bo_trades.date, payments.date)
-    ORDER BY binary_user_id, date) """;
-IF metric = '' THEN  
-SET _users_query = """
+    ORDER BY binary_user_id, date) """ ;
+SET _active_users = """
 ,active_users AS (
    SELECT *
      FROM (
             SELECT summary.binary_user_id
-                 , summary.date 
+                 , summary.date
                  , cumulative_"""||metric||""" AS metric_value
                  , '"""||metric||"""' AS metric
                  , CASE
@@ -204,6 +189,28 @@ SET _users_query = """
          )
     WHERE meet = TRUE
 )
+""" ;
+SET _active_users_auto = """
+,active_users AS (
+   SELECT *
+     FROM (
+            SELECT summary.binary_user_id
+                 , summary.date
+                 , cumulative_withdrawal_count AS metric_value
+                 , 'Auto' AS metric
+                 , (cumulative_contract_count >= 4 AND cumulative_contract_count - contract_count < 4) 
+                    AND (cumulative_pnl_usd > 1) AS meet
+                 , up.residence AS country
+                 , up.email
+                 , up.loginid_list
+              FROM user_daily_summary summary
+              JOIN bi.user_profile up ON up.binary_user_id = summary.binary_user_id
+             WHERE date =  DATE_SUB('"""||report_date||"""' , INTERVAL 1 DAY)
+         )
+    WHERE meet = TRUE
+)
+""" ;
+SET _final_users = """
 , active_users_non_internal AS (
    SELECT * EXCEPT(client_type)
      FROM (
@@ -278,6 +285,9 @@ SELECT binary_user_id
       LEFT JOIN bi.bo_client bc ON bc.binary_user_id = final_users.binary_user_id
      WHERE rownum <= final_number_user
    )
-GROUP BY 1 """;
-EXECUTE IMMEDIATE (_query_string);
-END;
+GROUP BY 1 """ ;
+IF metric = 'auto' 
+THEN SET _query_string = _user_daily_summary  || _active_users_auto || _final_users; 
+ELSE SET _query_string = _user_daily_summary  || _active_users || _final_users;
+END IF;
+SELECT _query_string
