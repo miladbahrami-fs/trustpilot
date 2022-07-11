@@ -99,7 +99,7 @@ WITH user_daily_summary AS (
                 FROM (
                       SElECT DATE(deal_date) AS date
                            , binary_user_id
-                           , -ROUND(SUM(CASE WHEN mv_mt5_deal_aggregated.entry IN ('out','out_by')
+                           , ROUND(SUM(CASE WHEN mv_mt5_deal_aggregated.entry IN ('out','out_by')
                               THEN (mv_mt5_deal_aggregated.sum_profit + mv_mt5_deal_aggregated.sum_storage) * r.rate
                               ELSE 0 END),4) AS closed_pnl_usd
                            , SUM(count_win_deals) AS mt5_win_count
