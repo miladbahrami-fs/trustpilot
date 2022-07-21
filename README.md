@@ -1,4 +1,11 @@
 # Trustpilot
+The idea of this query is to get the list of users who have passed the specified threshold regarding the specified metric in the selected date; excluding those clients whose exceeded the threshold in any previous date. The metric is calculated over the specified time range.  
+
+>Then getting users in each active country based on:
+>-  If active client count below invitation_limit, we take all active clients in that country
+>- If active client count above invitation_limit but less than threshold, we take all active clients in that country
+>- Else we take percentage of active clients based on country precentage  
+
 ## PARAMETERS
 |Parameter| Description|
 ---|---
