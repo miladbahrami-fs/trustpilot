@@ -1,4 +1,4 @@
-# trustpilot
+# Trustpilot
 ## PARAMETERS
 |Parameter| Description|
 ---|---
