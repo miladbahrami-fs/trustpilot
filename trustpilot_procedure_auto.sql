@@ -29,7 +29,7 @@ OPTIONS (
    Available Metrics :
       'bo_turnover_usd', 'bo_winning_turnover_usd', 'bo_pnl_usd', 'bo_profit_usd', 'bo_win_count', 'bo_profit_percentage'
       , 'bo_contract_count', 'deposit_usd', 'withdrawal_usd', 'deposit_count', 'withdrawal_count', 'withdrawal_deposit_percentage'
-      , 'mt5_pnl_usd', 'mt5_profit_usd', 'mt5_win_count', 'mt5_contract_count' , 'cumulative_pnl_usd' , 'cumulative_withdrawal_to_deposit'
+      , 'mt5_pnl_usd', 'mt5_profit_usd', 'mt5_win_count', 'mt5_contract_count' , 'pnl_usd' , 'contract_count'
       , 'auto' 
 
  """ )
